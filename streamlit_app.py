@@ -59,3 +59,51 @@ st.line_chart(df_pais.set_index("date")["daily_vaccinations"], height=300)
 # --- Estatísticas descritivas ---
 with st.expander("📈 Estatísticas do país selecionado"):
     st.dataframe(df_pais.describe())
+
+# ============================================================
+# ETAPA 3 — Previsão com Prophet (Demanda de Vacinas)
+# ============================================================
+from prophet import Prophet
+import matplotlib.pyplot as plt
+
+st.divider()
+st.subheader("3️⃣ Previsão de Demanda de Vacinas")
+
+# --- Verificação básica ---
+if df_pais.empty or len(df_pais) < 10:
+    st.warning("Dados insuficientes para gerar previsão.")
+else:
+    # Preparar dados para Prophet
+    df_forecast = df_pais[["date", "daily_vaccinations"]].rename(columns={"date": "ds", "daily_vaccinations": "y"})
+    df_forecast = df_forecast[df_forecast["y"] > 0]  # remove zeros e nulos
+
+    # Modelo Prophet
+    modelo = Prophet(daily_seasonality=True, yearly_seasonality=True)
+    modelo.fit(df_forecast)
+
+    # Criar horizonte de previsão (30 dias)
+    futuro = modelo.make_future_dataframe(periods=30)
+    previsao = modelo.predict(futuro)
+
+    # Plotar gráfico
+    fig1, ax1 = plt.subplots()
+    modelo.plot(previsao, ax=ax1)
+    st.pyplot(fig1)
+
+    # Mostrar tabela resumida
+    st.write("📅 Previsão (últimos e próximos dias):")
+    st.dataframe(previsao[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(10))
+
+    # --- Cálculo total previsto para o próximo mês ---
+    proximo_mes = previsao.tail(30)
+    estimativa_total = int(proximo_mes["yhat"].sum())
+
+    st.success(f"💉 Estimativa de vacinas necessárias nos próximos 30 dias: **{estimativa_total:,} doses**")
+
+    # --- Tendência geral ---
+    tendencia = proximo_mes["yhat"].mean() - df_forecast["y"].mean()
+    if tendencia > 0:
+        st.info("📈 A tendência indica **aumento** na aplicação diária de vacinas.")
+    else:
+        st.warning("📉 A tendência indica **redução** na aplicação diária de vacinas.")
+
