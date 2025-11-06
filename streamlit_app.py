@@ -90,9 +90,21 @@ else:
     modelo.plot(previsao, ax=ax1)
     st.pyplot(fig1)
 
-    # Mostrar tabela resumida
     st.write("📅 Previsão (últimos e próximos dias):")
-    st.dataframe(previsao[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(10))
+
+    df_pretty = previsao[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(10).rename(columns={
+        "ds": "Data",
+        "yhat": "Vacinas previstas (média)",
+        "yhat_lower": "Intervalo inferior",
+        "yhat_upper": "Intervalo superior"
+    })
+
+    # formatar números
+    df_pretty["Vacinas previstas (média)"] = df_pretty["Vacinas previstas (média)"].round(0).astype(int)
+    df_pretty["Intervalo inferior"] = df_pretty["Intervalo inferior"].round(0).astype(int)
+    df_pretty["Intervalo superior"] = df_pretty["Intervalo superior"].round(0).astype(int)
+
+    st.dataframe(df_pretty, use_container_width=True)
 
     # --- Cálculo total previsto para o próximo mês ---
     proximo_mes = previsao.tail(30)
