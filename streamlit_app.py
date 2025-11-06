@@ -144,3 +144,70 @@ else:
             st.warning("📉 Tendência de redução na vacinação.")
 
         st.divider()
+
+# ============================================================
+# ETAPA 4 — Comparativo de Previsões entre Países
+# ============================================================
+import plotly.express as px
+
+st.divider()
+st.subheader("4️⃣ Comparativo de Previsões entre Países")
+
+# --- Selecionar múltiplos países ---
+paises_comp = st.multiselect(
+    "Selecione países para comparar:",
+    sorted(dados["location"].unique()),
+    default=["Brazil", "United States", "India", "France"]
+)
+
+if not paises_comp:
+    st.warning("Selecione ao menos dois países para gerar o comparativo.")
+else:
+    resultados = []
+
+    for pais in paises_comp:
+        df_pais = dados[dados["location"] == pais].copy()
+        df_pais["date"] = pd.to_datetime(df_pais["date"])
+        df_pais = df_pais[["date", "daily_vaccinations"]].dropna()
+
+        if len(df_pais) < 10:
+            continue
+
+        # --- Preparar e treinar ---
+        df_forecast = df_pais.rename(columns={"date": "ds", "daily_vaccinations": "y"})
+        df_forecast = df_forecast[df_forecast["y"] > 0]
+        limite_superior = df_forecast["y"].quantile(0.99)
+        df_forecast = df_forecast[df_forecast["y"] < limite_superior]
+
+        modelo = Prophet(daily_seasonality=True, yearly_seasonality=True)
+        modelo.fit(df_forecast)
+        futuro = modelo.make_future_dataframe(periods=30)
+        previsao = modelo.predict(futuro)
+
+        previsao["yhat"] = previsao["yhat"].clip(lower=0)
+        total_30d = int(previsao.tail(30)["yhat"].sum())
+
+        resultados.append({"País": pais, "Vacinas previstas (30 dias)": total_30d})
+
+    # --- Montar ranking ---
+    if resultados:
+        df_rank = pd.DataFrame(resultados).sort_values(by="Vacinas previstas (30 dias)", ascending=False)
+        df_rank["Vacinas previstas (30 dias)"] = df_rank["Vacinas previstas (30 dias)"].apply(lambda x: f"{x:,}".replace(",", "."))
+
+        st.dataframe(df_rank, use_container_width=True)
+
+        # --- Gráfico comparativo ---
+        fig = px.bar(
+            df_rank,
+            x="País",
+            y="Vacinas previstas (30 dias)",
+            text="Vacinas previstas (30 dias)",
+            title="Comparativo de Vacinação Prevista (próximos 30 dias)",
+            color="País",
+        )
+        fig.update_traces(textposition="outside")
+        fig.update_layout(xaxis_title="", yaxis_title="Doses previstas", showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Nenhum país possui dados suficientes para comparação.")
+
