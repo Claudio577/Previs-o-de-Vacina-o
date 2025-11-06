@@ -72,7 +72,7 @@ st.subheader("3️⃣ Previsão de Demanda de Vacinas (por país)")
 # --- Selecionar países ---
 paises = st.multiselect(
     "Selecione um ou mais países para prever:",
-    sorted(df["location"].unique()),
+    sorted(dados["location"].unique()),  # <-- aqui muda para 'dados'
     default=["Brazil"]
 )
 
@@ -83,7 +83,7 @@ else:
     for pais in paises:
         st.markdown(f"### 🌍 {pais}")
 
-        df_pais = df[df["location"] == pais].copy()
+        df_pais = dados[dados["location"] == pais].copy()  # <-- aqui também
         df_pais["date"] = pd.to_datetime(df_pais["date"])
         df_pais = df_pais[["date", "daily_vaccinations"]].dropna()
 
