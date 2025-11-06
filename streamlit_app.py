@@ -72,7 +72,7 @@ st.subheader("3️⃣ Previsão de Demanda de Vacinas (por país)")
 # --- Selecionar países ---
 paises = st.multiselect(
     "Selecione um ou mais países para prever:",
-    sorted(dados["location"].unique()),  # <-- aqui muda para 'dados'
+    sorted(dados["location"].unique()),
     default=["Brazil"]
 )
 
@@ -83,7 +83,8 @@ else:
     for pais in paises:
         st.markdown(f"### 🌍 {pais}")
 
-        df_pais = dados[dados["location"] == pais].copy()  # <-- aqui também
+        # --- Filtrar dados ---
+        df_pais = dados[dados["location"] == pais].copy()
         df_pais["date"] = pd.to_datetime(df_pais["date"])
         df_pais = df_pais[["date", "daily_vaccinations"]].dropna()
 
@@ -91,25 +92,34 @@ else:
             st.warning(f"Dados insuficientes para {pais}.")
             continue
 
-        # Preparar dados para Prophet
+        # --- Preparar dados para Prophet ---
         df_forecast = df_pais.rename(columns={"date": "ds", "daily_vaccinations": "y"})
         df_forecast = df_forecast[df_forecast["y"] > 0]
 
-        # Treinar modelo Prophet
+        # --- Remover valores extremos (outliers) ---
+        limite_superior = df_forecast["y"].quantile(0.99)
+        df_forecast = df_forecast[df_forecast["y"] < limite_superior]
+
+        # --- Treinar modelo Prophet ---
         modelo = Prophet(daily_seasonality=True, yearly_seasonality=True)
         modelo.fit(df_forecast)
 
-        # Criar horizonte de previsão (30 dias)
+        # --- Criar horizonte de previsão (30 dias) ---
         futuro = modelo.make_future_dataframe(periods=30)
         previsao = modelo.predict(futuro)
 
-        # Plotar gráfico
+        # --- Corrigir valores negativos ---
+        previsao["yhat"] = previsao["yhat"].clip(lower=0)
+        previsao["yhat_lower"] = previsao["yhat_lower"].clip(lower=0)
+        previsao["yhat_upper"] = previsao["yhat_upper"].clip(lower=0)
+
+        # --- Plotar gráfico ---
         fig1, ax1 = plt.subplots()
         modelo.plot(previsao, ax=ax1)
         plt.title(f"Previsão de vacinas — {pais}")
         st.pyplot(fig1)
 
-        # Tabela formatada
+        # --- Tabela formatada (últimos dias previstos) ---
         df_pretty = previsao[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(10).rename(columns={
             "ds": "Data",
             "yhat": "Vacinas previstas (média)",
@@ -121,12 +131,12 @@ else:
         df_pretty["Intervalo superior"] = df_pretty["Intervalo superior"].round(0).astype(int)
         st.dataframe(df_pretty, use_container_width=True)
 
-        # Cálculo total previsto
+        # --- Cálculo total previsto (próximos 30 dias) ---
         proximo_mes = previsao.tail(30)
         estimativa_total = int(proximo_mes["yhat"].sum())
         st.success(f"💉 Estimativa para {pais} nos próximos 30 dias: **{estimativa_total:,} doses**")
 
-        # Tendência
+        # --- Tendência ---
         tendencia = proximo_mes["yhat"].mean() - df_forecast["y"].mean()
         if tendencia > 0:
             st.info("📈 Tendência de aumento na vacinação.")
@@ -134,4 +144,3 @@ else:
             st.warning("📉 Tendência de redução na vacinação.")
 
         st.divider()
-
