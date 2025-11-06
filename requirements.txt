@@ -4,3 +4,4 @@ matplotlib
 prophet
 scikit-learn
 numpy
+plotly
